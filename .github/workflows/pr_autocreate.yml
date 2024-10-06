@@ -1,0 +1,25 @@
+name: Development to Stage PR
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - development
+
+jobs:
+  create_pr:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # Ensures write permissions for pull requests
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create Pull Request from Development to Stage
+        env:
+          GH_TOKEN: ${{ github.token }}  # Use your secret token directly for authentication
+        run: |
+          gh pr create --base stage --head development --title "Development to Stage" --body "This PR automatically merges changes from development to stage."
