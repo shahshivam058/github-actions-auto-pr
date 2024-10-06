@@ -1,4 +1,4 @@
-name: Development to Stage PR
+name:  Stage to main PR
 
 on:
   pull_request:
@@ -22,4 +22,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}  # Use your secret token directly for authentication
         run: |
-          gh pr create --base main --head stage --title "Stage" --body "This PR automatically merges changes from stage to main."
+          gh pr create --base main --head stage --title "Stage to main PR" --body "This PR automatically merges changes from stage to main."
