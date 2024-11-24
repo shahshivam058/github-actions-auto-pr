@@ -1,9 +1,11 @@
 name: Terraform Lint
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger from any branch
+    inputs:
+      branch:
+        description: "The branch to run Terraform Lint on"
+        required: true
 
 jobs:
   tflint:
@@ -11,18 +13,21 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: write # Required for creating branches and PRs
       pull-requests: write
 
     steps:
       - name: Clone repo
         uses: actions/checkout@v4
-
+      
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
-
+      
       - name: Install TFLint
         run: curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh
 
       - name: Show TFLint Version
         run: tflint --init
@@ -30,82 +35,60 @@ jobs:
       - name: Run TFLint and Generate Report
         id: tflint
         run: |
-          # Run TFLint and handle potential errors
-          if ! tflint --recursive --force --format json --chdir . > tflint-output.json; then
-            echo "Error: TFLint failed to execute." >&2
-            exit 1
-          fi
+          TARGET_BRANCH="${{ inputs.branch }}"
+          # Checkout the target branch
+          git checkout "$TARGET_BRANCH"
+          # Create a temporary branch for linting PR
+          TEMP_BRANCH="tflint-report-${TARGET_BRANCH}-$(date +%s)"
+          git checkout -b "$TEMP_BRANCH"
+          echo "Created temporary branch $TEMP_BRANCH"
 
-          # Check if the tflint-output.json file is generated and not empty
-          if ! [ -s tflint-output.json ]; then
-            echo "Error: tflint-output.json is empty or missing." >&2
-            exit 1
-          fi
+          # Create TFLint output
+          tflint --recursive --force --format json --chdir . | tee tflint-output.json
 
-          # Start creating the Markdown report
-          echo "### TFLint Analysis Report" > tflint-report.md
-          echo "#### Analysis Details" >> tflint-report.md
-          echo "- **Date:** $(date)" >> tflint-report.md
-          echo "" >> tflint-report.md
+          # Generate the report
+          echo "### TFLint Analysis Report" > report_content.md
+          echo "#### Analysis Details" >> report_content.md
+          echo "- **Repository:** \`${{ github.repository }}\`" >> report_content.md
+          echo "- **Branch:** \`${{ github.head_ref }}\`" >> report_content.md
+          echo "- **Commit:** \`${{ github.sha }}\`" >> report_content.md
+          echo "- **Date:** $(date)" >> report_content.md
+          echo "" >> report_content.md
 
-          # Get the total number of issues
-          TOTAL_ISSUES=$(jq '.issues | length' tflint-output.json || echo "0")
-
-          # Check if there are no issues
+          # Process issues and create a formatted output
+          TOTAL_ISSUES=$(jq '.issues | length' tflint-output.json)
           if [ "$TOTAL_ISSUES" -eq 0 ]; then
-            echo "#### :white_check_mark: No issues found!" >> tflint-report.md
+            echo "#### :white_check_mark: No issues found!" >> report_content.md
           else
-            # Add summary for issues found
-            echo "#### :warning: Found $TOTAL_ISSUES issue(s)" >> tflint-report.md
-            echo "" >> tflint-report.md
-            echo "<details><summary>Click to see detailed findings</summary>" >> tflint-report.md
-            echo "| Severity | Rule | File | Line | Message |" >> tflint-report.md
-            echo "|----------|------|------|------|---------|" >> tflint-report.md
-            
-            # Append detailed issues to the report
-            jq -r '.issues[] | "| \(.rule.severity) | \(.rule.name) | \(.range.filename) | \(.range.start.line) | \(.message) |"' tflint-output.json >> tflint-report.md
-            echo "</details>" >> tflint-report.md
-            echo "" >> tflint-report.md
-
-            # Add summary by severity
-            echo "#### Summary by Severity" >> tflint-report.md
-            echo "| Severity | Count |" >> tflint-report.md
-            echo "|----------|-------|" >> tflint-report.md
-            jq -r '.issues | group_by(.rule.severity) | .[] | "| \(.[0].rule.severity) | \(length) |"' tflint-output.json >> tflint-report.md
+            echo "#### :warning: Found $TOTAL_ISSUES issue(s)" >> report_content.md
+            echo "" >> report_content.md
+            echo "<details><summary>Click to see detailed findings</summary>" >> report_content.md
+            echo "" >> report_content.md
+            echo "| Severity | Rule | File | Line | Message |" >> report_content.md
+            echo "|----------|------|------|------|---------|" >> report_content.md
+            jq -r '.issues[] | "| \(.rule.severity) | \(.rule.name) | \(.range.filename) | \(.range.start.line) | \(.message) |"' tflint-output.json >> report_content.md
+            echo "" >> report_content.md
+            echo "</details>" >> report_content.md
           fi
 
-      - name: Commit Report and Push Branch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH_NAME="tflint/report-$(date +'%Y%m%d%H%M%S')"
-          git checkout -b "$BRANCH_NAME"
-          git add tflint-report.md
-          git commit -m "Add TFLint Report"
-          git push origin "$BRANCH_NAME"
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          # Commit the report to the branch
+          git add tflint-output.json report_content.md
+          git commit -m "Add TFLint report"
+          git push -u origin "$TEMP_BRANCH"
 
-      - name: Install GitHub CLI
-        run: |
-          sudo apt-get install -y gh
-
-      - name: Create Pull Request using GitHub CLI
-        id: create_pr
+      - name: Create Pull Request
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create the pull request and capture the URL
-          PR_URL=$(gh pr create \
-            --title "TFLint Report - $(date +'%Y-%m-%d %H:%M:%S')" \
-            --body "A new TFLint analysis report has been generated. Please review the report and address any issues found." \
-            --base main \
-            --head ${{ env.BRANCH_NAME }} | jq -r .html_url)
-          echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+          gh pr create \
+            --base "${{ inputs.branch }}" \
+            --head "$TEMP_BRANCH" \
+            --title "TFLint Analysis for Branch ${{ inputs.branch }}" \
+            --body "This PR contains the results of a TFLint analysis for branch \`${{ inputs.branch }}\`."
 
-
-      - name: Comment Report on PR
+      - name: Post Comment
         env:
-          PR_URL: ${{ env.PR_URL }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr comment $PR_URL --body "$(cat tflint-report.md)"
+          PR_NUMBER=$(gh pr view --json number --jq '.number')
+          gh issue comment $PR_NUMBER --body "$(cat report_content.md)"
