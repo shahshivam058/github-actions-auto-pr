@@ -1,0 +1,103 @@
+name: Terraform Lint
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+
+jobs:
+  tflint:
+    name: TFLint PR commenter
+    runs-on: ubuntu-latest
+
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+      
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+      
+      - name: Install TFlint
+        run: curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+      - name: Show TFlint Version
+        run: tflint --init
+      
+      - name: Run TFLint and Generate Report
+        id: tflint
+        run: |
+          tflint --recursive --force --format json --chdir . > tflint-output.json
+          echo "### TFLint Analysis Report" > tflint-report.md
+          echo "#### Analysis Details" >> tflint-report.md
+          echo "- **Repository:** \`${{ github.repository }}\`" >> tflint-report.md
+          echo "- **Branch:** \`${{ github.head_ref || github.ref_name }}\`" >> tflint-report.md
+          echo "- **Commit:** \`${{ github.sha }}\`" >> tflint-report.md
+          echo "- **Date:** $(date)" >> tflint-report.md
+          echo "" >> tflint-report.md
+          TOTAL_ISSUES=$(jq '.issues | length' tflint-output.json)
+          if [ "$TOTAL_ISSUES" -eq 0 ]; then
+            echo "#### :white_check_mark: No issues found!" >> tflint-report.md
+          else
+            echo "#### :warning: Found $TOTAL_ISSUES issue(s)" >> tflint-report.md
+            echo "" >> tflint-report.md
+            echo "<details><summary>Click to see detailed findings</summary>" >> tflint-report.md
+            echo "| Severity | Rule | File | Line | Message |" >> tflint-report.md
+            echo "|----------|------|------|------|---------|" >> tflint-report.md
+            jq -r '.issues[] | "| \(.rule.severity) | \(.rule.name) | \(.range.filename) | \(.range.start.line) | \(.message) |"' tflint-output.json >> tflint-report.md
+            echo "</details>" >> tflint-report.md
+            echo "" >> tflint-report.md
+            echo "#### Summary by Severity" >> tflint-report.md
+            echo "| Severity | Count |" >> tflint-report.md
+            echo "|----------|-------|" >> tflint-report.md
+            jq -r '.issues | group_by(.rule.severity) | .[] | "| \(.[0].rule.severity) | \(length) |"' tflint-output.json >> tflint-report.md
+
+      - name: Commit Report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH_NAME="tflint/report-$(date +'%Y%m%d%H%M%S')"
+          git checkout -b "$BRANCH_NAME"
+          git add tflint-report.md
+          git commit -m "Add TFLint Report"
+          git push origin "$BRANCH_NAME"
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get install -y gh
+          
+      - name: Create Pull Request using GitHub CLI
+        run: |
+          BRANCH_NAME="tflint/report-$(date +'%Y%m%d%H%M%S')"
+          gh pr create --title "TFLint Report - $(date +'%Y-%m-%d %H:%M:%S')" \
+            --body "A new TFLint analysis report has been generated. Please review the report and address any issues found.\nThe report is attached as a file in this PR." \
+            --base development \
+            --head $BRANCH_NAME
+
+      - name: Post Comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reportContent = fs.readFileSync('tflint-report.md', 'utf8');
+
+            const prNumber = (await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${context.ref_name}`,
+              state: 'open',
+            })).data[0]?.number;
+
+            if (prNumber) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: reportContent,
+              });
+            }
