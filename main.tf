@@ -1,24 +1,40 @@
-# Terraform Configuration
-terraform {
-  required_version = ">= 1.0.0"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.0"
-    }
-  }
-}
-
-# Provider Configuration
 provider "aws" {
-  region = "us-east-1"
+  region = "us-east-1" # Hardcoded region
 }
 
-# S3 Bucket Resource
-resource "aws_s3_bucket" "example" {
-  bucket = "example-terraform-lint-test-bucket"
-  acl    = "private"
+resource "aws_instance" "example" {
+  ami           = "ami-0c55b159cbfafe1f0" # Hardcoded AMI
+  instance_type = "t2.micro"
+  tags = {
+    Name = "example-instance" # Missing standard tags like `Environment`, `Owner`, etc.
+  }
+
+  # Security Group Inline Rules (bad practice)
+  vpc_security_group_ids = ["sg-123456"]
+
+  # Deprecated attribute (if using older Terraform AWS provider versions)
+  key_name = "my-key" # Hardcoded key name (might fail if not defined in the account)
+}
+
+resource "aws_security_group" "example" {
+  name        = "example-sg"
+  description = "Allow all inbound traffic (bad practice)"
+
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"] # Open to the world (insecure)
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   tags = {
-    Name        = "ExampleB
+    Name = "example-security-group"
+  }
+}
