@@ -73,5 +73,5 @@ jobs:
         run: |
           gh pr create --title "TFLint Report - $(date +'%Y-%m-%d %H:%M:%S')" \
             --body "A new TFLint analysis report has been generated. Please review the report and address any issues found.\nThe report is attached as a file in this PR." \
-            --base development \
+            --base main \
             --head $BRANCH_NAME
