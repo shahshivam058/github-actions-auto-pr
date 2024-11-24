@@ -1,6 +1,9 @@
 name: Terraform Lint
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: '*/1 * * * *'
 
