@@ -30,28 +30,50 @@ jobs:
       - name: Run TFLint and Generate Report
         id: tflint
         run: |
-          tflint --recursive --force --format json --chdir . > tflint-output.json
+          # Run TFLint and handle potential errors
+          if ! tflint --recursive --force --format json --chdir . > tflint-output.json; then
+            echo "Error: TFLint failed to execute." >&2
+            exit 1
+          fi
+      
+          # Check if the tflint-output.json file is generated and not empty
+          if ! [ -s tflint-output.json ]; then
+            echo "Error: tflint-output.json is empty or missing." >&2
+            exit 1
+          fi
+      
+          # Start creating the Markdown report
           echo "### TFLint Analysis Report" > tflint-report.md
           echo "#### Analysis Details" >> tflint-report.md
           echo "- **Date:** $(date)" >> tflint-report.md
           echo "" >> tflint-report.md
-          TOTAL_ISSUES=$(jq '.issues | length' tflint-output.json)
+      
+          # Get the total number of issues
+          TOTAL_ISSUES=$(jq '.issues | length' tflint-output.json || echo "0")
+      
+          # Check if there are no issues
           if [ "$TOTAL_ISSUES" -eq 0 ]; then
             echo "#### :white_check_mark: No issues found!" >> tflint-report.md
           else
+            # Add summary for issues found
             echo "#### :warning: Found $TOTAL_ISSUES issue(s)" >> tflint-report.md
             echo "" >> tflint-report.md
             echo "<details><summary>Click to see detailed findings</summary>" >> tflint-report.md
             echo "| Severity | Rule | File | Line | Message |" >> tflint-report.md
             echo "|----------|------|------|------|---------|" >> tflint-report.md
+            
+            # Append detailed issues to the report
             jq -r '.issues[] | "| \(.rule.severity) | \(.rule.name) | \(.range.filename) | \(.range.start.line) | \(.message) |"' tflint-output.json >> tflint-report.md
             echo "</details>" >> tflint-report.md
             echo "" >> tflint-report.md
+      
+            # Add summary by severity
             echo "#### Summary by Severity" >> tflint-report.md
             echo "| Severity | Count |" >> tflint-report.md
             echo "|----------|-------|" >> tflint-report.md
             jq -r '.issues | group_by(.rule.severity) | .[] | "| \(.[0].rule.severity) | \(length) |"' tflint-output.json >> tflint-report.md
           fi
+
 
       - name: Commit Report
         run: |
