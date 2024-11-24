@@ -51,6 +51,7 @@ jobs:
             echo "| Severity | Count |" >> tflint-report.md
             echo "|----------|-------|" >> tflint-report.md
             jq -r '.issues | group_by(.rule.severity) | .[] | "| \(.[0].rule.severity) | \(length) |"' tflint-output.json >> tflint-report.md
+          fi
 
       - name: Commit Report
         run: |
