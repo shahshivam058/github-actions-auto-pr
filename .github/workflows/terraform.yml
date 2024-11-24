@@ -74,12 +74,14 @@ jobs:
             jq -r '.issues | group_by(.rule.severity) | .[] | "| \(.[0].rule.severity) | \(length) |"' tflint-output.json >> tflint-report.md
           fi
 
-      - name: Create Branch Without Committing
+      - name: Commit Report and Push Branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           BRANCH_NAME="tflint/report-$(date +'%Y%m%d%H%M%S')"
           git checkout -b "$BRANCH_NAME"
+          git add tflint-report.md
+          git commit -m "Add TFLint Report"
           git push origin "$BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
