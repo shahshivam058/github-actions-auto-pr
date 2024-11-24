@@ -62,6 +62,8 @@ jobs:
           git add tflint-report.md
           git commit -m "Add TFLint Report"
           git push origin "$BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
 
       - name: Install GitHub CLI
         run: |
