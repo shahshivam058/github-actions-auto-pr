@@ -12,7 +12,8 @@ jobs:
     name: TFLint PR commenter
     runs-on: ubuntu-latest
 
-    if: github.ref == 'refs/heads/main'
+    # Run on branch 'main' for push events, always for schedule
+    if: github.event_name != 'schedule' && github.ref == 'refs/heads/main'
 
     permissions:
       contents: write
@@ -80,27 +81,3 @@ jobs:
             --body "A new TFLint analysis report has been generated. Please review the report and address any issues found.\nThe report is attached as a file in this PR." \
             --base development \
             --head $BRANCH_NAME
-
-      - name: Post Comment on PR
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const reportContent = fs.readFileSync('tflint-report.md', 'utf8');
-
-            const prNumber = (await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              head: `${context.repo.owner}:${context.ref_name}`,
-              state: 'open',
-            })).data[0]?.number;
-
-            if (prNumber) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: reportContent,
-              });
-            }
