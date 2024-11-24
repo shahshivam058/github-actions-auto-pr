@@ -37,10 +37,6 @@ jobs:
       - name: Run TFLint and Generate Report
         id: tflint
         run: |
-          TARGET_BRANCH="${{ inputs.branch }}"
-          # Checkout the target branch
-          git checkout "$TARGET_BRANCH"
-          # Create a temporary branch for linting PR
           TEMP_BRANCH="tflint-report-${TARGET_BRANCH}-$(date +%s)"
           git checkout -b "$TEMP_BRANCH"
           echo "Created temporary branch $TEMP_BRANCH"
