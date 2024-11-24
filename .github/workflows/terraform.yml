@@ -92,12 +92,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_URL=$(gh pr create --title "TFLint Report - $(date +'%Y-%m-%d %H:%M:%S')" \
-          --body "A new TFLint analysis report has been generated. Please review the report and address any issues found." \
-          --base main \
-          --head ${{ env.BRANCH_NAME }} \
-          --json url | jq -r .url)
+          # Create the pull request and capture the URL
+          PR_URL=$(gh pr create \
+            --title "TFLint Report - $(date +'%Y-%m-%d %H:%M:%S')" \
+            --body "A new TFLint analysis report has been generated. Please review the report and address any issues found." \
+            --base main \
+            --head ${{ env.BRANCH_NAME }} | jq -r .html_url)
           echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+
 
       - name: Comment Report on PR
         env:
