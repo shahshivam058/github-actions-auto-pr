@@ -82,7 +82,7 @@ jobs:
             --base "${{ github.ref }}" \
             --head "$TEMP_BRANCH" \
             --title "TFLint Analysis for Branch ${{ github.ref }}" \
-            --body "This PR contains the results of a TFLint analysis for branch \`${{ inputs.branch }}\`."
+            --body "This PR contains the results of a TFLint analysis for branch \`${{ github.ref }}\`."
 
       - name: Post Comment
         env:
