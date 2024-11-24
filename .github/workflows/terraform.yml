@@ -2,10 +2,6 @@ name: Terraform Lint
 
 on:
   workflow_dispatch: # Allows manual trigger from any branch
-    inputs:
-      branch:
-        description: "The branch to run Terraform Lint on"
-        required: true
 
 jobs:
   tflint:
@@ -31,6 +27,12 @@ jobs:
 
       - name: Show TFLint Version
         run: tflint --init
+
+      - name: Configure Git Identity
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+
 
       - name: Run TFLint and Generate Report
         id: tflint
