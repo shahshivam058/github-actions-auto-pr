@@ -2,15 +2,13 @@ name: Terraform Lint
 
 on:
   schedule:
-    - cron: '*/1 * * * *'
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
 
 jobs:
   tflint:
     name: TFLint PR commenter
     runs-on: ubuntu-latest
-
-    # Run on branch 'main' for push events, always for schedule
-    if: github.ref == 'refs/heads/main'
 
     permissions:
       contents: write
@@ -28,16 +26,13 @@ jobs:
 
       - name: Show TFlint Version
         run: tflint --init
-      
+
       - name: Run TFLint and Generate Report
         id: tflint
         run: |
           tflint --recursive --force --format json --chdir . > tflint-output.json
           echo "### TFLint Analysis Report" > tflint-report.md
           echo "#### Analysis Details" >> tflint-report.md
-          echo "- **Repository:** \`newscorp-sshah/test-action\`" >> tflint-report.md
-          echo "- **Branch:** \`main\`" >> tflint-report.md
-          echo "- **Commit:** \`0afc52d7a0d62cd93d577570394c329fd02ce126\`" >> tflint-report.md
           echo "- **Date:** $(date)" >> tflint-report.md
           echo "" >> tflint-report.md
           TOTAL_ISSUES=$(jq '.issues | length' tflint-output.json)
@@ -56,7 +51,6 @@ jobs:
             echo "| Severity | Count |" >> tflint-report.md
             echo "|----------|-------|" >> tflint-report.md
             jq -r '.issues | group_by(.rule.severity) | .[] | "| \(.[0].rule.severity) | \(length) |"' tflint-output.json >> tflint-report.md
-          fi
 
       - name: Commit Report
         run: |
@@ -73,8 +67,9 @@ jobs:
           sudo apt-get install -y gh
           
       - name: Create Pull Request using GitHub CLI
+        env:
+          BRANCH_NAME: ${{ env.BRANCH_NAME }}
         run: |
-          BRANCH_NAME="tflint/report-$(date +'%Y%m%d%H%M%S')"
           gh pr create --title "TFLint Report - $(date +'%Y-%m-%d %H:%M:%S')" \
             --body "A new TFLint analysis report has been generated. Please review the report and address any issues found.\nThe report is attached as a file in this PR." \
             --base development \
