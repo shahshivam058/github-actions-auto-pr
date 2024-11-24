@@ -32,45 +32,31 @@ jobs:
       - name: Run TFLint and Generate Report
         id: tflint
         run: |
-          # Create temporary files for outputs
-          echo "summary=Summary of TFLint Findings" >> $GITHUB_OUTPUT
-          # Run TFLint recursively with force flag and capture output
-          tflint --recursive --force --format json --chdir . | tee tflint-output.json
-          # Generate the report content
-          echo "### TFLint Analysis Report" > report_content.md
-          echo "#### Analysis Details" >> report_content.md
-          echo "- **Repository:** \`${{ github.repository }}\`" >> report_content.md
-          echo "- **Branch:** \`${{ github.head_ref }}\`" >> report_content.md
-          echo "- **PR:** #${{ github.event.pull_request.number }}" >> report_content.md
-          echo "- **Commit:** \`${{ github.sha }}\`" >> report_content.md
-          echo "- **Date:** $(date)" >> report_content.md
-          echo "- **Scan Mode:** Recursive (including all subdirectories)" >> report_content.md
-          echo "" >> report_content.md
-          # Process issues and create formatted output
+          tflint --recursive --force --format json --chdir . > tflint-output.json
+          echo "### TFLint Analysis Report" > tflint-report.md
+          echo "#### Analysis Details" >> tflint-report.md
+          echo "- **Repository:** \`newscorp-sshah/test-action\`" >> tflint-report.md
+          echo "- **Branch:** \`main\`" >> tflint-report.md
+          echo "- **Commit:** \`0afc52d7a0d62cd93d577570394c329fd02ce126\`" >> tflint-report.md
+          echo "- **Date:** $(date)" >> tflint-report.md
+          echo "" >> tflint-report.md
           TOTAL_ISSUES=$(jq '.issues | length' tflint-output.json)
           if [ "$TOTAL_ISSUES" -eq 0 ]; then
-            echo "#### :white_check_mark: No issues found!" >> report_content.md
+            echo "#### :white_check_mark: No issues found!" >> tflint-report.md
           else
-            echo "#### :warning: Found $TOTAL_ISSUES issue(s)" >> report_content.md
-            echo "" >> report_content.md
-            echo "<details><summary>Click to see detailed findings</summary>" >> report_content.md
-            echo "" >> report_content.md
-            # Create a table header
-            echo "| Severity | Rule | File | Line | Message |" >> report_content.md
-            echo "|----------|------|------|------|---------|" >> report_content.md
-            # Process each issue and add to table
-            jq -r '.issues[] | "| \(.rule.severity) | \(.rule.name) | \(.range.filename) | \(.range.start.line) | \(.message) |"' tflint-output.json >> report_content.md
-            echo "" >> report_content.md
-            echo "</details>" >> report_content.md
-            # Add summary by severity
-            echo "" >> report_content.md
-            echo "#### Summary by Severity" >> report_content.md
-            echo "| Severity | Count |" >> report_content.md
-            echo "|----------|--------|" >> report_content.md
-            jq -r '.issues | group_by(.rule.severity) | .[] | "| \(.[0].rule.severity) | \(length) |"' tflint-output.json >> report_content.md
+            echo "#### :warning: Found $TOTAL_ISSUES issue(s)" >> tflint-report.md
+            echo "" >> tflint-report.md
+            echo "<details><summary>Click to see detailed findings</summary>" >> tflint-report.md
+            echo "| Severity | Rule | File | Line | Message |" >> tflint-report.md
+            echo "|----------|------|------|------|---------|" >> tflint-report.md
+            jq -r '.issues[] | "| \(.rule.severity) | \(.rule.name) | \(.range.filename) | \(.range.start.line) | \(.message) |"' tflint-output.json >> tflint-report.md
+            echo "</details>" >> tflint-report.md
+            echo "" >> tflint-report.md
+            echo "#### Summary by Severity" >> tflint-report.md
+            echo "| Severity | Count |" >> tflint-report.md
+            echo "|----------|-------|" >> tflint-report.md
+            jq -r '.issues | group_by(.rule.severity) | .[] | "| \(.[0].rule.severity) | \(length) |"' tflint-output.json >> tflint-report.md
           fi
-          # Save the report content for the next step
-          cat report_content.md > tflint-report.md
 
       - name: Commit Report
         run: |
